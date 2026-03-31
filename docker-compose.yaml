@@ -1,0 +1,163 @@
+services:
+
+  # ── ZOOKEEPER ─────────────────────────────────────────────────
+  zoo1:
+    image: confluentinc/cp-zookeeper:7.4.4
+    restart: always
+    hostname: zoo1
+    container_name: zoo1
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+
+  # ── KAFKA BROKER ──────────────────────────────────────────────
+  broker:
+    image: confluentinc/cp-kafka:7.4.4
+    hostname: broker
+    container_name: broker
+    depends_on:
+      - zoo1
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zoo1:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # ── KAFKA UI ──────────────────────────────────────────────────
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - broker
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker:29092
+      KAFKA_CLUSTERS_0_METRICS_PORT: 9997
+      SERVER_SERVLET_CONTEXT_PATH: /kafkaui
+      AUTH_TYPE: "LOGIN_FORM"
+      SPRING_SECURITY_USER_NAME: ${KAFKA_UI_USER}
+      SPRING_SECURITY_USER_PASSWORD: ${KAFKA_UI_PASSWORD}
+
+  # ── AIRFLOW METADATA DATABASE ─────────────────────────────────
+  airflow-db:
+    image: postgres:15
+    container_name: airflow-db
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── AIRFLOW INIT (runs once) ───────────────────────────────────
+  airflow-init:
+    image: apache/airflow:2.9.1
+    container_name: airflow-init
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka databricks-sql-connector python-dotenv requests dbt-databricks"
+    command: version
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+
+  # ── AIRFLOW WEBSERVER (http://localhost:8081) ──────────────────
+  airflow-webserver:
+    image: apache/airflow:2.9.1
+    container_name: airflow-webserver
+    restart: always
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "8081:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      DATABRICKS_HOST: ${DATABRICKS_HOST}
+      DATABRICKS_TOKEN: ${DATABRICKS_TOKEN}
+      DATABRICKS_HTTP_PATH: ${DATABRICKS_HTTP_PATH}
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka databricks-sql-connector python-dotenv requests dbt-databricks"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./producer.py:/opt/airflow/scripts/producer.py
+      - ./consumer.py:/opt/airflow/scripts/consumer.py
+      - ./market_pipeline:/opt/airflow/market_pipeline
+      - airflow_logs:/opt/airflow/logs
+    command: webserver
+
+  # ── AIRFLOW SCHEDULER ─────────────────────────────────────────
+  airflow-scheduler:
+    image: apache/airflow:2.9.1
+    container_name: airflow-scheduler
+    restart: always
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      DATABRICKS_HOST: ${DATABRICKS_HOST}
+      DATABRICKS_TOKEN: ${DATABRICKS_TOKEN}
+      _PIP_ADDITIONAL_REQUIREMENTS: "confluent-kafka databricks-sql-connector python-dotenv requests dbt-databricks"
+      DATABRICKS_HTTP_PATH: ${DATABRICKS_HTTP_PATH}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./producer.py:/opt/airflow/scripts/producer.py
+      - ./consumer.py:/opt/airflow/scripts/consumer.py
+      - ./market_pipeline:/opt/airflow/market_pipeline
+      - airflow_logs:/opt/airflow/logs
+    command: scheduler
+
+volumes:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  airflow_db_data:
+  airflow_logs:
+
+networks:
+  default:
+    name: pipeline-network

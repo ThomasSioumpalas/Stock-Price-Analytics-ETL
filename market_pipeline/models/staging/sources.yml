@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: market_data
+    catalog: workspace
+    schema: market_data
+    tables:
+      - name: raw_market_prices
+        description: "Raw AAPL price data ingested from Kafka"
