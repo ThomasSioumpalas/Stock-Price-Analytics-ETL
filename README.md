@@ -2,7 +2,7 @@ Market Data ETL Pipeline
 
 A production-style data engineering pipeline that streams financial market data from the Alpha Vantage API through Apache Kafka into Databricks, transforms it with dbt, and orchestrates everything with Apache Airflow.
 
-Architecture
+# Architecture
 
 Alpha Vantage API
 ↓
@@ -19,7 +19,7 @@ dbt (Databricks) 3-layer medallion transformation
 ↓
 Apache Airflow orchestrates the full pipeline on a daily schedule
 
-Tech Stack
+# Tech Stack
 
 | Data Source | Alpha Vantage REST API |
 | Message Broker | Apache Kafka 7.4.4 (Confluent) |
@@ -32,7 +32,7 @@ Tech Stack
 | Infrastructure | Docker + Docker Compose |
 | Language | Python 3.12 |
 
-Project Structure
+# Project Structure
 
 ETL/
 ├── docker-compose.yml # all services: Kafka, Airflow, Postgres
@@ -57,14 +57,14 @@ ETL/
 ├── mart_price_history.sql
 └── mart_alerts.sql
 
-Prerequisites
+# Prerequisites
 
 - Docker Desktop installed and running
 - Python 3.12+
 - Alpha Vantage API key (free at [alphavantage.co](https://www.alphavantage.co/support/#api-key))
 - Databricks workspace (free Community Edition at [community.cloud.databricks.com](https://community.cloud.databricks.com))
 
-Setup
+# Setup
 
 1. Clone the repo and create your `.env` file
 
@@ -132,7 +132,7 @@ dbt run
 dbt test
 ```
 
-Automated run via Airflow
+# Automated run via Airflow
 
 1. Go to `http://localhost:8081`
 2. Find the `market_pipeline` DAG
@@ -141,9 +141,9 @@ Automated run via Airflow
 
 The DAG runs automatically at **6:00 AM Monday–Friday**.
 
-dbt Models
+# dbt Models
 
-Staging — `stg_market_prices`
+* Staging — `stg_market_prices`
 
 Reads from `raw_market_prices` and:
 
@@ -151,7 +151,7 @@ Reads from `raw_market_prices` and:
 - Renames columns to snake_case (`open` → `open_price`)
 - Deduplicates rows using `QUALIFY`
 
-Intermediate — `int_market_prices`
+* Intermediate — `int_market_prices`
 
 Builds on staging and calculates:
 
@@ -160,13 +160,13 @@ Builds on staging and calculates:
 - 5-day rolling average close price
 - Anomaly flag (price moved more than 2% in one day)
 
-Marts
+* Marts
 
 **`mart_price_history`** — full historical archive with a human-readable `day_label` column (`Strong Up`, `Up`, `Flat`, `Down`, `Strong Down`). Used for dashboards and reporting.
 
 **`mart_alerts`** — filtered view of only anomaly days (`is_anomaly = true`). Used for alerting on significant price movements.
 
-Airflow DAG
+# Airflow DAG
 
 The `market_pipeline` DAG runs 6 tasks in sequence:
 
@@ -186,12 +186,12 @@ dbt_test                   dbt test (data quality checks)
 
 Each task retries twice on failure with a 5-minute delay between attempts.
 
-Kafka Topics
+# Kafka Topics
 
 | `market-prices` | Daily OHLCV data per symbol, produced by `producer.py` |
 | `__consumer_offsets` | Internal Kafka topic tracking consumer group offsets |
 
-Data Quality Tests
+# Data Quality Tests
 
 dbt tests run automatically at the end of every pipeline run:
 
@@ -201,13 +201,3 @@ dbt tests run automatically at the end of every pipeline run:
 | `mart_price_history` | `trade_date` | not_null, unique |
 | `mart_alerts` | `trade_date` | not_null |
 | `mart_alerts` | `is_anomaly` | not_null |
-
-Stopping the Pipeline
-
-```bash
-# stop all containers but keep data
-docker compose down
-
-# stop all containers and delete all data (clean slate)
-docker compose down -v
-```
