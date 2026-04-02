@@ -20,7 +20,7 @@ dbt (Databricks) 3-layer medallion transformation
 Apache Airflow orchestrates the full pipeline on a daily schedule
 
 # Tech Stack
-
+"
 | Data Source | Alpha Vantage REST API |
 | Message Broker | Apache Kafka 7.4.4 (Confluent) |
 | Coordination | Apache ZooKeeper 7.4.4 |
@@ -31,7 +31,7 @@ Apache Airflow orchestrates the full pipeline on a daily schedule
 | Metadata DB | PostgreSQL 15 |
 | Infrastructure | Docker + Docker Compose |
 | Language | Python 3.12 |
-
+"
 # Project Structure
 
 ETL/
