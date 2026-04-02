@@ -3,7 +3,7 @@ Market Data ETL Pipeline
 A production-style data engineering pipeline that streams financial market data from the Alpha Vantage API through Apache Kafka into Databricks, transforms it with dbt, and orchestrates everything with Apache Airflow.
 
 # Architecture
-
+```
 Alpha Vantage API
 ↓
 Python Producer polls the API daily, pushes to Kafka topic
@@ -18,9 +18,9 @@ dbt (Databricks) 3-layer medallion transformation
 └── marts price history + alerts tables
 ↓
 Apache Airflow orchestrates the full pipeline on a daily schedule
-
+```
 # Tech Stack
-"
+```
 | Data Source | Alpha Vantage REST API |
 | Message Broker | Apache Kafka 7.4.4 (Confluent) |
 | Coordination | Apache ZooKeeper 7.4.4 |
@@ -31,9 +31,9 @@ Apache Airflow orchestrates the full pipeline on a daily schedule
 | Metadata DB | PostgreSQL 15 |
 | Infrastructure | Docker + Docker Compose |
 | Language | Python 3.12 |
-"
+```
 # Project Structure
-
+```
 ETL/
 ├── docker-compose.yml # all services: Kafka, Airflow, Postgres
 ├── .env  
@@ -56,7 +56,7 @@ ETL/
 ├── schema.yml
 ├── mart_price_history.sql
 └── mart_alerts.sql
-
+```
 # Prerequisites
 
 - Docker Desktop installed and running
